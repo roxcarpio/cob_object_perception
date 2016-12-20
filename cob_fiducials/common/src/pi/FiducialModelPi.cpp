@@ -14,12 +14,12 @@ using namespace ipa_Fiducials;
 
 FiducialModelPi::FiducialModelPi()
 {
-				
+
 }
 
 FiducialModelPi::~FiducialModelPi()
 {
-		
+
 }
 
 
@@ -28,7 +28,7 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 	m_image_size_factor = image.cols*1./640.0;	// express relative to a 640x480 pixels camera image
 
 	cv::Mat src_mat_8U1;
-	bool debug = false;
+    bool debug = false;
 	if (debug)
 			m_debug_img = image.clone();
 
@@ -84,7 +84,7 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 	{
 		minus_c = 11;
 		half_kernel_size = 5;
-	}        
+	}
 	cv::adaptiveThreshold(src_mat_8U1, src_mat_8U1, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 2*half_kernel_size+1, minus_c);
 
 	if (debug)
@@ -93,6 +93,9 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 			cv::waitKey(10);
 	}
 
+    t2_img_proc_pitag = ros::Time::now();
+    t1_detec_pitag = ros::Time::now();
+
 // ------------ Contour extraction --------------------------------------
 	std::vector<std::vector<cv::Point> > contours;
 	cv::findContours(src_mat_8U1, contours, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
@@ -100,7 +103,7 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 	if (debug)
 	{
 			cv::Mat contour_image = m_debug_img;
- 
+
 			for(size_t i = 0; i < contours.size(); i++)
 					cv::drawContours(contour_image, contours, (int)i, cv::Scalar(0, 0, 255), 1, 8);
 			cv::imshow("30 Contours", contour_image);
@@ -108,16 +111,16 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 	}
 
 // ------------ Ellipse extraction --------------------------------------
-	int min_ellipse_size = 7; // Min ellipse size at 70cm distance is 20x20 pixels
+    int min_ellipse_size =5; // Min ellipse size at 70cm distance is 20x20 pixels
 	//int min_contour_points = int(1.5 * min_ellipse_size);
-	int max_ellipse_aspect_ratio = 7;
-		
+    int max_ellipse_aspect_ratio = 15;
+
 	if(m_use_fast_pi_tag)
 	{
 		min_ellipse_size = 5;
-		max_ellipse_aspect_ratio = 15;
+        max_ellipse_aspect_ratio = 15;   //dejarlo lo mas cerca a 1 posible
 	}
-		
+
 	std::vector<cv::RotatedRect> ellipses;
 	for(size_t i = 0; i < contours.size(); i++)
 	{
@@ -474,13 +477,13 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 		cv::imshow("40 Ellipses", ellipse_image);
 		cv::waitKey(10);
 	}
-		
-		
+
+
 	//PITAG: For PITAG the loop is executed only once with all ellipses in the cloud
 	//FASTPITAG: For FASTPITAG the number of loop excecutions is based on the number of rois
 	std::vector<cv::RotatedRect> ellipses_copy(ellipses);
 	bool once = true;
-		
+
 	for(size_t n = 0; n < points.size() || (!m_use_fast_pi_tag && once); n++){ //Each point is the center of a roi
 		once = false;
 
@@ -511,7 +514,7 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 		std::vector<double> ref_Ratio;
 		for(unsigned int i = 0; i < ellipses.size(); i++)
 			ref_A.push_back(std::max(ellipses[i].size.width, ellipses[i].size.height));
-			
+
 		//FPITAG
 		if(m_use_fast_pi_tag)
 		{
@@ -594,7 +597,7 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 								continue;
 						}
 						//Fast Pi Tag
-							
+
 						// Check area
 						max_ellipse_difference = 0.5 * std::min(ref_A[k], ref_A[l]);
 						if (std::abs(ref_A[k] - ref_A[l]) > max_ellipse_difference)
@@ -796,7 +799,7 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 					{
 						idx0 = k;
 						idx1 = j;
-					}        
+					}
 
 					t_pi tag;
 					tag.image_points = std::vector<cv::Point2f>(12, cv::Point2f());
@@ -1180,7 +1183,7 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 										continue;
 
 									if (!TagUnique(final_tag_vec, final_tag))
-										continue;                                                                
+										continue;
 
 									if (AnglesValid2D(final_tag.image_points))
 									{
@@ -1229,7 +1232,7 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 
 		// ------------ Compute pose --------------------------------------
 		int min_matching_lines = 4;
-			
+
 		for (unsigned int i=0; i<final_tag_vec.size(); i++)
 		{
 			if (final_tag_vec[i].no_matching_lines < min_matching_lines)
@@ -1281,12 +1284,12 @@ unsigned long FiducialModelPi::GetPose(cv::Mat& image, std::vector<t_pose>& vec_
 		}
 	}
 // ------------ END --------------------------------------
-		
+
 	if (debug)
 	{
 			//cv::waitKey();
 	}
-		
+
 	//Fast Pi Tag
 	if(m_use_fast_pi_tag)
 	{
@@ -1432,7 +1435,7 @@ bool FiducialModelPi::ProjectionValid(cv::Mat& rot_CfromO, cv::Mat& trans_CfromO
 bool FiducialModelPi::TagUnique(std::vector<t_pi>& tag_vec, t_pi& newTag)
 {
 		// Insert if not already existing
-		bool duplicate = true;        
+		bool duplicate = true;
 		for (unsigned int i=0; i<tag_vec.size(); i++)
 		{
 				duplicate = true;
@@ -1472,7 +1475,7 @@ unsigned long FiducialModelPi::LoadParameters(std::vector<FiducialPiParameters> 
 				double d_line1_AC = tag_size * pi_tags[i].d_line1_AC;
 				double d_line1_CD = tag_size - tag_size * pi_tags[i].d_line1_AC;
 				ref_tag.cross_ration_1 = (d_line1_AB/d_line1_BD)/(d_line1_AC/d_line1_CD);
-		
+
 				// Marker coordinates
 				ref_tag.marker_points.push_back(cv::Point2f(0, -0));
 				ref_tag.marker_points.push_back(cv::Point2f(float(d_line0_AB), -0));
@@ -1551,7 +1554,7 @@ unsigned long FiducialModelPi::LoadParameters(std::string directory_and_filename
 
 				if ( p_xmlElement_Root )
 				{
-					
+
 //************************************************************************************
 //	BEGIN FiducialDetector->Fast PiTag flag
 //************************************************************************************
@@ -1793,7 +1796,7 @@ unsigned long FiducialModelPi::LoadParameters(std::string directory_and_filename
 //        END FiducialDetector->Fiducial
 //************************************************************************************
 						}
-						
+
 						if (vec_pi_parameters.empty())
 						{
 								std::cerr << "ERROR - FiducialModelPi::LoadParameters:" << std::endl;
