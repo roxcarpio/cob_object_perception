@@ -92,6 +92,7 @@
 
 #include <boost/thread/mutex.hpp>
 #include <boost/timer.hpp>
+#include <std_msgs/Float64.h>
 
 //#include "opencv/highgui.h"
 
@@ -151,6 +152,10 @@ private:
     std::string received_frame_id_;
     cob_object_detection_msgs::DetectionArray detection_array_;
 
+    //rosa
+   ros::Publisher pose_pub;
+   ros::Publisher data_experiments_pub;
+
 
     //fiducials::fiducialsConfig launch_reconfigure_config_;
     //dynamic_reconfigure::Server<cob_fiducials::fiducialsConfig> dynamic_reconfigure_server_;
@@ -182,6 +187,10 @@ private:
     boost::mutex tf_lock_;
     ros::Timer tf_pub_timer_;
     tf::StampedTransform marker_tf_;
+
+
+    ros::Time t1_img_proc_pitag, t2;
+
 
  
 
@@ -231,6 +240,9 @@ public:
         if (ros_node_mode_ == MODE_TOPIC || ros_node_mode_ == MODE_TOPIC_AND_SERVICE)
         {
             detect_fiducials_pub_ = node_handle_.advertise<cob_object_detection_msgs::DetectionArray>("detect_fiducials", 1, imgConnect, imgDisconnect);
+            //rosa
+            pose_pub = node_handle_.advertise<geometry_msgs::PoseStamped>("pose", 100);
+            data_experiments_pub = node_handle_.advertise<geometry_msgs::PoseStamped>("data_experiments", 100);
         }
         if (ros_node_mode_ == MODE_SERVICE || ros_node_mode_ == MODE_TOPIC_AND_SERVICE)
         {
@@ -265,7 +277,7 @@ public:
 	default:
         	ROS_ERROR("[fiducials] Unknown fiducial type");
 		return false;
-	}
+    }
 
 	if(publish_tf_) {
 		tf_pub_timer_.stop();
@@ -356,6 +368,8 @@ public:
                 camera_matrix_initialized_ = true;
             }
 
+            t1_img_proc_pitag = ros::Time::now(); // Start of the processing
+
             // Receive
             cv_bridge::CvImageConstPtr cv_ptr;
             try
@@ -381,14 +395,96 @@ public:
 			//detection_array_.header.frame_id = "/head_cam3d_link";
 
 			detectFiducials(detection_array_, color_mat_8U3_);
+            //rosa - result computation time image processing
+            double result_img_proc = tag_detector_.get()->t2_img_proc_pitag.toNSec() - t1_img_proc_pitag.toNSec();
+
             if (ros_node_mode_ == MODE_TOPIC || ros_node_mode_ == MODE_TOPIC_AND_SERVICE)
             {
                 // Publish
                 detect_fiducials_pub_.publish(detection_array_);
+
+                //Publish z component pose
+
+                if (detection_array_.detections.empty() != true)
+                    {
+                      for (int i=0; i <= detection_array_.detections.size()-1; i++)
+                      {
+                        try
+                        {
+                          //rosa
+                          geometry_msgs::PoseStamped poseMsg;
+                          //int j = detection_array_.detections[i].id; used when there are mora than one ID
+                          //poseMsg[j].pose.position.x = detection_array_.detections[i].pose.pose.position.x;
+
+                          poseMsg.pose.position.x = detection_array_.detections[i].pose.pose.position.x;
+                          poseMsg.pose.position.y = detection_array_.detections[i].pose.pose.position.y;
+                          poseMsg.pose.position.z = detection_array_.detections[i].pose.pose.position.z;
+                          poseMsg.pose.orientation.w = detection_array_.detections[i].pose.pose.orientation.w;
+                          poseMsg.pose.orientation.x = detection_array_.detections[i].pose.pose.orientation.x;
+                          poseMsg.pose.orientation.y = detection_array_.detections[i].pose.pose.orientation.y;
+                          poseMsg.pose.orientation.z = detection_array_.detections[i].pose.pose.orientation.z;
+                          pose_pub.publish(poseMsg);
+                        }
+                        catch(...)
+                        {
+                          ROS_ERROR("Failed to publish pose");
+                        }
+                      }
+                    }
+
+
+                if (detection_array_.detections.empty() != true)
+                    {
+                      for (int i=0; i <= detection_array_.detections.size()-1; i++)
+                      {
+                        try
+                        {
+                          //rosa
+                          geometry_msgs::PoseStamped poseMsg;
+                          //int j = detection_array_.detections[i].id; used when there are mora than one ID
+                          //poseMsg[j].pose.position.x = detection_array_.detections[i].pose.pose.position.x;
+
+                          poseMsg.pose.position.x = detection_array_.detections[i].pose.pose.position.x;
+                          poseMsg.pose.position.y = detection_array_.detections[i].pose.pose.position.y;
+                          poseMsg.pose.position.z = detection_array_.detections[i].pose.pose.position.z;
+                          poseMsg.pose.orientation.w = detection_array_.detections[i].pose.pose.orientation.w;
+                          poseMsg.pose.orientation.x = detection_array_.detections[i].pose.pose.orientation.x;
+                          poseMsg.pose.orientation.y = detection_array_.detections[i].pose.pose.orientation.y;
+                          poseMsg.pose.orientation.z = detection_array_.detections[i].pose.pose.orientation.z;
+                          pose_pub.publish(poseMsg);
+                        }
+                        catch(...)
+                        {
+                          ROS_ERROR("Failed to publish pose");
+                        }
+                      }
+                    }
+
+                // rosa - computation time detection
+                double result_detection = ros::Time::now().toNSec() - tag_detector_.get()->t1_detec_pitag.toNSec();
+
+                if (detection_array_.detections.empty() != true)
+                    {
+                      for (int i=0; i <= detection_array_.detections.size()-1; i++)
+                      {
+                        try
+                        {
+                          //rosa
+                          geometry_msgs::PoseStamped dataExpMsg;
+                          dataExpMsg.pose.position.x = 100 * detection_array_.detections[i].pose.pose.position.z;
+                          dataExpMsg.pose.position.y = result_detection;
+                          dataExpMsg.pose.position.z = result_img_proc;
+                          data_experiments_pub.publish(dataExpMsg);
+                        }
+                        catch(...)
+                        {
+                          ROS_ERROR("Failed to publish data experiments");
+                        }
+                      }
+                    }
             }
 
-//            synchronizer_received_ = true;
-
+            // synchronizer_received_ = true;
             // Notify waiting thread
         }
         condQ_.notify_one();
@@ -496,7 +592,7 @@ public:
 	unsigned long ret_val = ipa_Utils::RET_OK;
 	ret_val = tag_detector_->GetPose(color_image, tags_vec);
 
-	if (ret_val & ipa_Utils::RET_OK)
+    if (ret_val & ipa_Utils::RET_OK)
         {
             pose_array_size = tags_vec.size();
 
@@ -536,8 +632,8 @@ public:
                 fiducial_instance.pose.pose.orientation.z =  vec7d[6];
 
                 fiducial_instance.pose.header = detection_array.header;
-//              fiducial_instance.pose.header.stamp = received_timestamp_;
-//              fiducial_instance.pose.header.frame_id = received_frame_id_;
+
+                t2 = ros::Time::now(); // time elapsed since the beginning of the processing
 
         		// Analyze the image sharpness at the area inside the detected marker
                 if (compute_sharpness_measure_ == true)
@@ -583,7 +679,7 @@ public:
 		 
 		 detection_msg.pose.pose.position.x = vec_vec7d[i][0];
 		 detection_msg.pose.pose.position.y = vec_vec7d[i][1];
-		 detection_msg.pose.pose.position.z = vec_vec7d[i][2];
+         detection_msg.pose.pose.position.z = vec_vec7d[i][2];
 
 		 detection_msg.pose.pose.orientation.w = vec_vec7d[i][3];
 		 detection_msg.pose.pose.orientation.x = vec_vec7d[i][4];
